@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Pair is Ownable {
     using Math for uint;
+    uint private kRatio = 10**5;
     uint private priceDecimals = 10 ** 8;
 
     // rebase token
@@ -19,7 +20,7 @@ contract Pair is Ownable {
     uint public priceCumulativeLast;
     uint public lastCumulativeTime;
     uint public priceCumulativeLastDay;
-    uint private twapPrice;
+    uint public twapPrice;
 
     constructor(address initialOwner, address _token) Ownable(initialOwner) {
         token = _token;
@@ -29,13 +30,17 @@ contract Pair is Ownable {
         return twapPrice;
     }
 
+    function getTokenAddr() external view returns (address) {
+        return token;
+    }
+
     // 10 decimals
     function _price() private view returns (uint256) {
-        uint eth_balance = address(this).balance;
-        uint token_balance = IERC20(token).balanceOf(address(this)) /
+        uint ethBalance = address(this).balance;
+        uint tokenBalance = IERC20(token).balanceOf(address(this)) /
             priceDecimals;
 
-        return eth_balance / token_balance;
+        return ethBalance / tokenBalance;
     }
 
     function _startSwap() private {
@@ -46,60 +51,60 @@ contract Pair is Ownable {
         priceCumulativeLast += t * lastPrice;
         lastPriceTime = block.timestamp;
 
-        if (lastPriceTime / 86400 != lastCumulativeTime / 86400) {
-            t = lastPriceTime - lastCumulativeTime;
-            twapPrice = (priceCumulativeLast - priceCumulativeLastDay) / t;
-            lastCumulativeTime = lastPriceTime;
-            priceCumulativeLastDay = priceCumulativeLast;
+        if (lastPriceTime / 86400 == lastCumulativeTime / 86400) {
+            return;
         }
+        t = lastPriceTime - lastCumulativeTime;
+        twapPrice = (priceCumulativeLast - priceCumulativeLastDay) / t;
+        lastCumulativeTime = lastPriceTime;
+        priceCumulativeLastDay = priceCumulativeLast;
     }
 
     // sell eth
     function sell(uint amountOut) external payable {
-        require(amountOut > 0, "amount must be greater than 0");
-        require(msg.value > 0, "value must be greater than 0");
+        require(amountOut > 0, "amount=0");
+        require(msg.value > 0, "msg.value=0");
         _startSwap();
 
-        uint eth_balance = (address(this).balance-msg.value)/priceDecimals;
-        uint token_balance = IERC20(token).balanceOf(address(this)) /
-            priceDecimals;
-        uint k = eth_balance*token_balance;
-        uint new_eth_balance = address(this).balance/priceDecimals;
+        uint ethBalance = (address(this).balance - msg.value) / kRatio;
+        uint tokenBalance = IERC20(token).balanceOf(address(this)) / kRatio;
+        uint k = ethBalance * tokenBalance;
+        uint new_eth_balance = address(this).balance / kRatio;
 
-        uint tokenAmount = k/new_eth_balance * priceDecimals;
-        tokenAmount = (tokenAmount * 999) / 1000;
-        require(
-            tokenAmount >= amountOut,
-            "amountOut must be less than or equal to tokenAmount"
-        );
-        IERC20(token).transfer(msg.sender, tokenAmount);
+        uint tokenAmount = k / new_eth_balance;
+        uint out = (tokenBalance - tokenAmount) * kRatio;
+        out = (out * 999) / 1000;
+        require(out >= amountOut, "amountOut");
+        IERC20(token).transfer(msg.sender, out);
         lastPrice = _price();
     }
 
     // buy eth
     function buy(uint amountIn, uint amountOut) external {
-        require(amountIn > 0, "amount must be greater than 0");
+        require(amountIn > 0, "amountIn");
         _startSwap();
-        uint eth_balance = address(this).balance/priceDecimals;
-        uint token_balance = IERC20(token).balanceOf(address(this)) /
-            priceDecimals;
-        uint k = eth_balance*token_balance;
+        uint ethBalance = address(this).balance / kRatio;
+        uint tokenBalance = IERC20(token).balanceOf(address(this)) / kRatio;
+        uint k = ethBalance * tokenBalance;
         IERC20(token).transferFrom(msg.sender, address(this), amountIn);
-        uint new_token_balance = IERC20(token).balanceOf(address(this)) /
-            priceDecimals;
+        uint new_token_balance = IERC20(token).balanceOf(address(this))/ kRatio;
 
-        uint ethAmount = k/new_token_balance * priceDecimals;
-        ethAmount = (ethAmount * 999) / 1000;
-        require(
-            ethAmount >= amountOut,
-            "amountOut must be less than or equal to ethAmount"
-        );
-        payable(msg.sender).transfer(ethAmount);
+        uint ethAmount = k / new_token_balance;
+        uint out = (ethBalance - ethAmount) * kRatio;
+        out = (out * 999) / 1000;
+        require(out >= amountOut, "amountOut");
+        payable(msg.sender).transfer(out);
+
         lastPrice = _price();
     }
 
     function escape() external onlyOwner {
         payable(msg.sender).transfer(address(this).balance);
-        IERC20(token).transfer(msg.sender, IERC20(token).balanceOf(address(this)));
+        IERC20(token).transfer(
+            msg.sender,
+            IERC20(token).balanceOf(address(this))
+        );
     }
+
+    receive() external payable {}
 }

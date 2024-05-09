@@ -20,7 +20,7 @@ describe("FCoin", function () {
     describe("Deployment", function () {
         it("Should set the right name", async function () {
             const { coin } = await loadFixture(deployCoinFixture);
-            expect(await coin.name()).to.equal("FCoin");
+            expect(await coin.name()).to.equal("StabuLink Fixed Coin");
         });
 
         it("Should set the right owner", async function () {

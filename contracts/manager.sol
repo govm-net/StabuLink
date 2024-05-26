@@ -14,8 +14,12 @@ import "./pair.sol";
 
 contract Manager is Ownable, Pausable {
     using Math for uint;
-    uint private priceDecimals = 10 ** 8;
+    uint private constant priceDecimals = 10 ** 8;
     uint private feedTimeLimit = 3600 * 12;
+
+    uint256 public constant ONE_WEEK = 3600 * 24 * 7;
+    uint256 public constant ONE_MONTH = 3600 * 24 * 31;
+    uint256 public constant HALF_YEAR = 3600 * 24 * 183;
 
     SCoin public scoin;
     FCoin public fcoin;
@@ -37,7 +41,19 @@ contract Manager is Ownable, Pausable {
 
     AggregatorV3Interface internal dataFeed;
 
-    constructor(address initialOwner, address _feed) Ownable(initialOwner) {
+    event DepositRecord(
+        uint indexed id,
+        address indexed account,
+        uint ethAmount,
+        uint tokenAmount,
+        uint timeout
+    );
+
+    event FinishDeposit(uint indexed id);
+
+    event Rebase(uint indexed oldBase, uint indexed newBase);
+
+    constructor(address _feed) Ownable(msg.sender) {
         dataFeed = AggregatorV3Interface(_feed);
         scoin = new SCoin(address(this));
         fcoin = new FCoin(address(this));
@@ -54,6 +70,10 @@ contract Manager is Ownable, Pausable {
 
     function getSFUSDAddress() public view returns (address) {
         return address(fcoin);
+    }
+
+    function getDataFeed() public view returns (address) {
+        return address(dataFeed);
     }
 
     function setDataFeed(address _feed) external onlyOwner {
@@ -84,7 +104,7 @@ contract Manager is Ownable, Pausable {
         require(option > 0, "option is invalid");
         require(option < 4, "option is invalid");
         require(price > 0, "price is invalid");
-        require(msg.value > 0, "value is invalid");
+        require(msg.value > 100000, "value is invalid");
         uint tokenAmount = (msg.value * price) / priceDecimals;
         tokenAmount = (tokenAmount * 3) / 4;
         if (isSCoin) {
@@ -97,14 +117,14 @@ contract Manager is Ownable, Pausable {
         uint fee;
         uint timeout;
         if (option == 1) {
-            fee = (msg.value * 9995) / 10000;
-            timeout = block.timestamp + 3600 * 24 * 7;
+            fee = msg.value / 200;
+            timeout = block.timestamp + ONE_WEEK;
         } else if (option == 2) {
-            fee = (msg.value * 999) / 1000;
-            timeout = block.timestamp + 3600 * 24 * 30;
+            fee = msg.value / 100;
+            timeout = block.timestamp + ONE_MONTH;
         } else {
-            fee = (msg.value * 995) / 1000;
-            timeout = block.timestamp + 3600 * 24 * 183;
+            fee = msg.value / 20;
+            timeout = block.timestamp + HALF_YEAR;
         }
         payable(address(pair)).transfer(fee);
         uint feeAmount = (fee * price) / priceDecimals;
@@ -119,48 +139,50 @@ contract Manager is Ownable, Pausable {
             tokenAmount,
             timeout
         );
+        emit DepositRecord(
+            lastDepositID,
+            msg.sender,
+            msg.value,
+            tokenAmount,
+            timeout
+        );
     }
 
     // withdraw scoin to get eth
     function withdraw(uint depositID, bool isSCoin) external {
         Deposit memory record = deposits[depositID];
         delete deposits[depositID];
-        if (depositID == lastFinishID + 1) {
-            lastFinishID++;
-        }
-        if (record.tokenAmount == 0) {
-            return;
-        }
+        require(record.tokenAmount > 0, "not exist");
         if (isSCoin) {
             scoin.burn(msg.sender, record.tokenAmount);
         } else {
             fcoin.burn(msg.sender, record.tokenAmount);
         }
         payable(record.account).transfer(record.ethAmount);
+        emit FinishDeposit(depositID);
     }
 
     // liquidate scoin to get eth
     function liquidate(uint depositID) external whenNotPaused {
         Deposit memory record = deposits[depositID];
-        delete deposits[depositID];
-        if (depositID == lastFinishID + 1) {
-            lastFinishID++;
-        }
         require(block.timestamp > record.timeout, "not timeout");
+        require(record.timeout > 0, "not exist");
+        delete deposits[depositID];
         uint price = getChainlinkPrice();
         uint tokenAmount = (record.ethAmount * price) / priceDecimals;
         payable(address(pair)).transfer(record.ethAmount);
         scoin.mint(address(pair), tokenAmount);
+        emit FinishDeposit(depositID);
     }
 
-    function updateLastFinishID() external {
-        for (uint i = lastFinishID + 1; i <= lastDepositID + 10 && i <= lastDepositID; i++) {
+    function updateLastFinishID(uint last) external {
+        require(last <= lastDepositID, "last too big");
+        require(last > lastFinishID, "last too small");
+        for (uint i = lastFinishID + 1; i < last; i++) {
             Deposit memory record = deposits[i];
-            if (record.tokenAmount > 0) {
-                return;
-            }
-            lastFinishID++;
+            require(record.tokenAmount == 0, "not finished");
         }
+        lastFinishID = last;
     }
 
     // scoin2fcoin
@@ -190,6 +212,7 @@ contract Manager is Ownable, Pausable {
         uint newbase = (base * price1) / price2;
         uint balance1 = scoin.balanceOf(address(pair));
         scoin.rebase(newbase);
+        emit Rebase(base, newbase);
         if (newbase > base) {
             return;
         }
@@ -200,19 +223,19 @@ contract Manager is Ownable, Pausable {
         scoin.rebase((newbase + base) / 2);
     }
 
-    function forceRebase() external whenPaused{
+    function forceRebase() external whenPaused {
         uint current = block.timestamp / 86400;
         if (current == lastRebaseTime) {
             return;
         }
         lastRebaseTime = current;
         uint base = scoin.base();
-        scoin.rebase(base - base/1000);
+        scoin.rebase(base - base / 1000);
     }
 
     function escape() external onlyOwner whenPaused {
         // All users are withdrawn
-        if (lastFinishID < lastDepositID){
+        if (lastFinishID < lastDepositID) {
             return;
         }
         pair.escape();

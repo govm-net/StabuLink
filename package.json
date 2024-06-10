@@ -4,7 +4,7 @@
     "@chainlink/contracts": "^1.1.0",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.0.2",
-    "hardhat": "^2.22.3"
+    "hardhat": "^2.22.5"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

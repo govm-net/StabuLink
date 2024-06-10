@@ -15,12 +15,7 @@ import "./pair.sol";
 contract Manager is Ownable, Pausable {
     using Math for uint;
     uint private constant priceDecimals = 10 ** 8;
-    uint private constant priceDecimals = 10 ** 8;
     uint private feedTimeLimit = 3600 * 12;
-
-    uint256 public constant ONE_WEEK = 3600 * 24 * 7;
-    uint256 public constant ONE_MONTH = 3600 * 24 * 31;
-    uint256 public constant HALF_YEAR = 3600 * 24 * 183;
 
     uint256 public constant ONE_WEEK = 3600 * 24 * 7;
     uint256 public constant ONE_MONTH = 3600 * 24 * 31;

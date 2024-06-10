@@ -15,7 +15,12 @@ import "./pair.sol";
 contract Manager is Ownable, Pausable {
     using Math for uint;
     uint private constant priceDecimals = 10 ** 8;
+    uint private constant priceDecimals = 10 ** 8;
     uint private feedTimeLimit = 3600 * 12;
+
+    uint256 public constant ONE_WEEK = 3600 * 24 * 7;
+    uint256 public constant ONE_MONTH = 3600 * 24 * 31;
+    uint256 public constant HALF_YEAR = 3600 * 24 * 183;
 
     uint256 public constant ONE_WEEK = 3600 * 24 * 7;
     uint256 public constant ONE_MONTH = 3600 * 24 * 31;
@@ -188,8 +193,11 @@ contract Manager is Ownable, Pausable {
     // scoin2fcoin
     function scoin2fcoin(uint amount) external {
         require(amount > 0, "amount is invalid");
-        fcoin.mint(msg.sender, amount - amount / 1000);
+        uint ratio = (fcoin.totalSupply()+amount) * 1000 / scoin.totalSupply();
+        uint fee = ratio * amount / 100000;
+        
         scoin.burn(msg.sender, amount);
+        fcoin.mint(msg.sender, amount - fee);
     }
 
     // fcoin2scoin
@@ -201,11 +209,10 @@ contract Manager is Ownable, Pausable {
 
     // rebase
     function rebase() external whenNotPaused {
-        uint current = block.timestamp / 86400;
-        if (current == lastRebaseTime) {
+        if (block.timestamp < lastRebaseTime+86400) {
             return;
         }
-        lastRebaseTime = current;
+        lastRebaseTime = block.timestamp;
         uint price1 = getChainlinkPrice();
         uint price2 = pair.averagePrice();
         uint base = scoin.base();
@@ -224,11 +231,10 @@ contract Manager is Ownable, Pausable {
     }
 
     function forceRebase() external whenPaused {
-        uint current = block.timestamp / 86400;
-        if (current == lastRebaseTime) {
+        if (block.timestamp < lastRebaseTime+86400) {
             return;
         }
-        lastRebaseTime = current;
+        lastRebaseTime = block.timestamp;
         uint base = scoin.base();
         scoin.rebase(base - base / 1000);
     }

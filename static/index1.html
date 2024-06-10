@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DApp 交互页面</title>
+</head>
+<body>
+  <h1>DApp 交互页面</h1>
+
+  <div id="balance"></div>
+  <div id="transfer">
+    <h2>代币转账</h2>
+    <label for="to">接收地址：</label>
+    <input type="text" id="to" placeholder="地址" required><br>
+    <label for="amount">转账金额：</label>
+    <input type="number" id="amount" placeholder="金额" required><br>
+    <button onclick="transfer()">转账</button>
+  </div>
+
+  <script src="https://cdn.ethers.io/lib/ethers-5.4.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

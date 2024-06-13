@@ -3,7 +3,6 @@
 // File: contracts/libraries/UQ112x112.sol
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -13,7 +12,6 @@ import "./scoin.sol";
 import "./pair.sol";
 
 contract Manager is Ownable, Pausable {
-    using Math for uint;
     uint private constant priceDecimals = 10 ** 8;
     uint private feedTimeLimit = 3600 * 12;
 
@@ -129,8 +127,6 @@ contract Manager is Ownable, Pausable {
         payable(address(pair)).transfer(fee);
         uint feeAmount = (fee * price) / priceDecimals;
         scoin.mint(address(pair), feeAmount);
-        // Community promotion fees
-        scoin.mint(owner(), feeAmount);
 
         lastDepositID++;
         deposits[lastDepositID] = Deposit(
@@ -203,7 +199,7 @@ contract Manager is Ownable, Pausable {
     }
 
     // rebase
-    function rebase() external whenNotPaused {
+    function rebase() external {
         if (block.timestamp < lastRebaseTime+86400) {
             return;
         }
@@ -213,25 +209,14 @@ contract Manager is Ownable, Pausable {
         uint base = scoin.base();
         uint newbase = (base * price1) / price2;
         uint balance1 = scoin.balanceOf(address(pair));
+        newbase = (newbase + base) / 2;
         scoin.rebase(newbase);
         emit Rebase(base, newbase);
         if (newbase > base) {
             return;
         }
         uint balance2 = scoin.balanceOf(address(pair));
-
         scoin.mint(address(pair), (balance2 - balance1) / 2);
-        newbase = scoin.base();
-        scoin.rebase((newbase + base) / 2);
-    }
-
-    function forceRebase() external whenPaused {
-        if (block.timestamp < lastRebaseTime+86400) {
-            return;
-        }
-        lastRebaseTime = block.timestamp;
-        uint base = scoin.base();
-        scoin.rebase(base - base / 1000);
     }
 
     function escape() external onlyOwner whenPaused {

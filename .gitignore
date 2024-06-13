@@ -21,3 +21,4 @@ todo.*
 yarn.lock
 *.go
 *.mod
+static2

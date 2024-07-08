@@ -3,6 +3,7 @@
 // File: contracts/libraries/UQ112x112.sol
 pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -12,6 +13,7 @@ import "./scoin.sol";
 import "./pair.sol";
 
 contract Manager is Ownable, Pausable {
+    using Math for uint;
     uint private constant priceDecimals = 10 ** 8;
     uint private feedTimeLimit = 3600 * 12;
 
@@ -35,7 +37,8 @@ contract Manager is Ownable, Pausable {
 
     mapping(uint => Deposit) public deposits;
     uint public lastDepositID;
-    uint public lastFinishID;
+    uint public depositCount;
+    uint public finishCount;
 
     AggregatorV3Interface internal dataFeed;
 
@@ -97,12 +100,23 @@ contract Manager is Ownable, Pausable {
     }
 
     // deposit eth to mint scoin
-    function deposit(uint option, bool isSCoin) external payable whenNotPaused {
+    function deposit(
+        uint id,
+        uint option,
+        bool isSCoin
+    ) external payable whenNotPaused {
         uint price = getChainlinkPrice();
         require(option > 0, "option is invalid");
         require(option < 4, "option is invalid");
         require(price > 0, "price is invalid");
-        require(msg.value > 100000, "value is invalid");
+        require(msg.value >= 0.001 ether, "value is invalid");
+        if (id == 0) {
+            lastDepositID++;
+            id = lastDepositID;
+        } else {
+            require(id <= lastDepositID, "wrong id");
+            require(deposits[id].ethAmount == 0, "id used");
+        }
         uint tokenAmount = (msg.value * price) / priceDecimals;
         tokenAmount = (tokenAmount * 3) / 4;
         if (isSCoin) {
@@ -127,16 +141,18 @@ contract Manager is Ownable, Pausable {
         payable(address(pair)).transfer(fee);
         uint feeAmount = (fee * price) / priceDecimals;
         scoin.mint(address(pair), feeAmount);
+        // Community promotion fees
+        scoin.mint(owner(), feeAmount);
 
-        lastDepositID++;
-        deposits[lastDepositID] = Deposit(
+        depositCount++;
+        deposits[id] = Deposit(
             msg.sender,
             msg.value - fee,
             tokenAmount,
             timeout
         );
         emit DepositRecord(
-            lastDepositID,
+            id,
             msg.sender,
             msg.value,
             tokenAmount,
@@ -154,6 +170,7 @@ contract Manager is Ownable, Pausable {
         } else {
             fcoin.burn(msg.sender, record.tokenAmount);
         }
+        finishCount++;
         payable(record.account).transfer(record.ethAmount);
         emit FinishDeposit(depositID);
     }
@@ -168,60 +185,61 @@ contract Manager is Ownable, Pausable {
         uint tokenAmount = (record.ethAmount * price) / priceDecimals;
         payable(address(pair)).transfer(record.ethAmount);
         scoin.mint(address(pair), tokenAmount);
+        finishCount++;
         emit FinishDeposit(depositID);
-    }
-
-    function updateLastFinishID(uint last) external {
-        require(last <= lastDepositID, "last too big");
-        require(last > lastFinishID, "last too small");
-        for (uint i = lastFinishID + 1; i < last; i++) {
-            Deposit memory record = deposits[i];
-            require(record.tokenAmount == 0, "not finished");
-        }
-        lastFinishID = last;
     }
 
     // scoin2fcoin
     function scoin2fcoin(uint amount) external {
         require(amount > 0, "amount is invalid");
-        uint ratio = (fcoin.totalSupply()+amount) * 1000 / scoin.totalSupply();
-        uint fee = ratio * amount / 100000;
-        
         scoin.burn(msg.sender, amount);
-        fcoin.mint(msg.sender, amount - fee);
+        fcoin.mint(msg.sender, amount - amount / 1000);
     }
 
     // fcoin2scoin
     function fcoin2scoin(uint amount) external {
         require(amount > 0, "amount is invalid");
-        scoin.mint(msg.sender, amount - amount / 1000);
         fcoin.burn(msg.sender, amount);
+        scoin.mint(msg.sender, amount - amount / 1000);
     }
 
     // rebase
-    function rebase() external {
-        if (block.timestamp < lastRebaseTime+86400) {
+    function rebase() external whenNotPaused {
+        uint current = block.timestamp / 86400;
+        if (current == lastRebaseTime) {
             return;
         }
-        lastRebaseTime = block.timestamp;
+        lastRebaseTime = current;
         uint price1 = getChainlinkPrice();
         uint price2 = pair.averagePrice();
         uint base = scoin.base();
         uint newbase = (base * price1) / price2;
         uint balance1 = scoin.balanceOf(address(pair));
-        newbase = (newbase + base) / 2;
         scoin.rebase(newbase);
         emit Rebase(base, newbase);
         if (newbase > base) {
             return;
         }
         uint balance2 = scoin.balanceOf(address(pair));
+
         scoin.mint(address(pair), (balance2 - balance1) / 2);
+        newbase = scoin.base();
+        scoin.rebase((newbase + base) / 2);
+    }
+
+    function forceRebase() external whenPaused {
+        uint current = block.timestamp / 86400;
+        if (current == lastRebaseTime) {
+            return;
+        }
+        lastRebaseTime = current;
+        uint base = scoin.base();
+        scoin.rebase(base - base / 1000);
     }
 
     function escape() external onlyOwner whenPaused {
         // All users are withdrawn
-        if (lastFinishID < lastDepositID) {
+        if (finishCount < depositCount) {
             return;
         }
         pair.escape();

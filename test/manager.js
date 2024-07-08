@@ -39,9 +39,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
         });
@@ -55,9 +55,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
 
@@ -69,9 +69,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
 
@@ -85,9 +85,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
 
@@ -96,6 +96,24 @@ describe("Manager", function () {
 
             await expect(mgr.connect(otherAccount).withdraw(1, true)).to.changeEtherBalance(otherAccount, amount * 99 / 100);
             await expect(mgr.connect(otherAccount).withdraw(2, true)).to.revertedWith("not exist");
+        });
+
+        it("withdraw&deposit", async function () {
+            const { mgr, link, owner, otherAccount } = await loadFixture(deployMgrFixture);
+            await link.setAnswer(3 * 10 ** 11)
+            await link.updateTimestamp()
+            const pairAddr = await mgr.getPairAddress()
+            expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount });
+            expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
+            expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
+
+            await expect(mgr.connect(otherAccount).withdraw(1, true)).to.changeEtherBalance(otherAccount, amount * 99 / 100);
+            
+            await mgr.connect(otherAccount).deposit(1, 2, true, { value: amount });
+            await expect(mgr.connect(otherAccount).withdraw(1, true)).to.changeEtherBalance(otherAccount, amount * 99 / 100);
         });
 
     })
@@ -107,9 +125,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
             ethers.provider.send("evm_increaseTime", [3600 * 24 * 50]);
@@ -124,9 +142,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
 
@@ -142,9 +160,9 @@ describe("Manager", function () {
             await link.updateTimestamp()
             const pairAddr = await mgr.getPairAddress()
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(0);
-            await mgr.connect(otherAccount).deposit(2, true, { value: amount })
+            await mgr.connect(otherAccount).deposit(0, 2, true, { value: amount })
             expect(await mgr.getSCoinBalance(otherAccount.address)).to.equal("2250000000000000000");
-            // expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
+            expect(await mgr.getSCoinBalance(owner.address)).to.equal("30000000000000000");
             expect(await mgr.getSCoinBalance(pairAddr)).to.equal("30000000000000000");
             expect(await ethers.provider.getBalance(pairAddr)).to.equal(amount / 100);
 

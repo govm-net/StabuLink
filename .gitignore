@@ -18,7 +18,3 @@ ignition/deployments/chain-31337
 
 .vscode
 todo.*
-yarn.lock
-*.go
-*.mod
-static2
